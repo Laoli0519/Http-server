@@ -200,6 +200,9 @@ ssize_t GetFileSize(const char *file_path)
   }
   return st.st_size;
 }
+
+//这个函数是为了将服务器目录下的文件整个作为报文传递给客户端
+//通常用于传递index静态网页
 int WriteStaticFile(int new_sock, const char* file_path)
 {
   //1、打开文件，失败返回404
@@ -225,6 +228,8 @@ int WriteStaticFile(int new_sock, const char* file_path)
   close(fd);
   return 200;
 }
+
+//解析目录路径，加上后缀
 void HanderFilePath(const char *url_path, char file_path[])
 {
   //url 是以/开头的，所以不需要wwwroot之后显示
@@ -243,6 +248,8 @@ void HanderFilePath(const char *url_path, char file_path[])
   }
   ///printf("%s\n",file_path);
 }
+
+//返回静态页面
 int HandlerStaticFile(int new_sock, const HttpRequst* req){
     //1、根据上面解析出的url_path,获取到对应的真实文件路径
   //此时HTTP服务器根目录叫 ./wwwroot
@@ -253,6 +260,8 @@ int HandlerStaticFile(int new_sock, const HttpRequst* req){
     int err_code = WriteStaticFile(new_sock,file_path);
     return err_code;
 }
+
+//父进程处理子进程返回的数据，封装响应报文，发送给客户端（父进程）
 int HandlerCGIFather(int new_sock,
     int father_read,int father_write,
     const HttpRequst* req){
@@ -304,6 +313,8 @@ int HandlerCGIFather(int new_sock,
   //  更简洁的做法是忽略SIGCHLD信号
   return 200;
 }
+
+//CGI进程通过环境变量以及管道拿到数据，对数据进行处理，再次通过管道传送回去（子进程）
 int HandlerCGIChild(int child_read,int child_write,
     const HttpRequst* req){
   //子进程读数据，进行程序替换：直接从管道中读数据不可取
@@ -366,7 +377,15 @@ int HandlerCGIChild(int child_read,int child_write,
   exit(0);
 
 }
+
+
 //生成动态页面
+//创建子进程
+//创建管道（两个）
+//替换子进程为CGI程序
+//将数据传送给子进程
+//等待子进程处理完成，将数据传送回来
+//父进程拿到子进程处理后的数据，调用响应处理函数组建报文返回给客户端
 int HandlerCGI(int new_sock, const HttpRequst* req){
   //1、创建一对匿名管道
   int fd1[2],fd2[2];
@@ -412,6 +431,7 @@ END:
   return err_code;
 }
 
+//解析请求报文
 void HandlerRequest(int new_sock){
   //完成一次请求处理过程的函数:真正完成new_sock的数据读写过程
  //1、读取请求并解析；
@@ -477,6 +497,8 @@ END:
   //服务器可能在短时间内处理了大量的连接，出现大量的TIME_WAIT ,需要设置setsockopt
   close(new_sock);
 }
+
+//创建线程已达到并发连接
 //线程入口函数
 //多线程的入口：处理一次客户端的请求，并且构成响应
 void* ThreadEntry(void* arg)
@@ -486,6 +508,7 @@ void* ThreadEntry(void* arg)
   HandlerRequest(new_sock);//通过此函数构成响应
   return NULL;
 }
+
 void HttpServerStart(const char* ip,short port)
 {
   //1、创建TCP socket；
@@ -531,6 +554,8 @@ void HttpServerStart(const char* ip,short port)
     pthread_detach(tid);
   }
 }
+
+
 int main(int argc,char *argv[])
 {
   if(argc!=3){
